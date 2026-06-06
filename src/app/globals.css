@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f7fbfc;
+  --foreground: #10242b;
+  --card: #ffffff;
+  --card-foreground: #10242b;
+  --primary: #0f4c5c;
+  --primary-foreground: #f7fbfc;
+  --secondary: #e8f2f5;
+  --secondary-foreground: #16323a;
+  --muted: #dce9ed;
+  --muted-foreground: #61747b;
+  --accent: #e1f4fb;
+  --accent-foreground: #10242b;
+  --border: #cbdae0;
+  --input: #c3d3da;
+  --ring: #3e92a3;
+  --signal: #f28c28;
+  --signal-foreground: #231407;
+  --map: #dcecf1;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-signal: var(--signal);
+  --color-signal-foreground: var(--signal-foreground);
+  --color-map: var(--map);
+  --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.leaflet-container {
+  height: 100%;
+  width: 100%;
+  font-family: inherit;
+}
+
+.leaflet-control-attribution {
+  font-size: 10px;
+}
+
+.slopetrip-map-pin {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 12px;
+  font-weight: 800;
+  box-shadow: 0 12px 28px rgb(16 36 43 / 24%);
+}
+
+.slopetrip-map-pin-selected {
+  background: var(--signal);
+  color: var(--signal-foreground);
+}
