@@ -56,8 +56,8 @@ export function TripPlanner({ resorts }: Props) {
 
   return (
     <div className="mx-auto grid max-w-7xl grid-cols-1 gap-4 px-4 py-6 lg:grid-cols-[360px_1fr] lg:px-6">
-      <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
-        <h1 className="text-2xl font-semibold">Plan Your Trip</h1>
+      <section className="slopetrip-panel rounded-lg border p-5">
+        <h1 className="text-2xl font-semibold text-[color:var(--pine)]">Plan Your Trip</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Tune the core constraints and let SlopeTrip compare cost, skill fit, and mountain conditions.
         </p>
@@ -84,7 +84,7 @@ export function TripPlanner({ resorts }: Props) {
               ))}
             </div>
           </div>
-          <label className="flex items-center justify-between rounded-md border border-border bg-background p-3 text-sm">
+          <label className="flex items-center justify-between rounded-md border border-border bg-white/72 p-3 text-sm shadow-sm">
             Renting gear for this trip?
             <input
               type="checkbox"
@@ -93,7 +93,7 @@ export function TripPlanner({ resorts }: Props) {
               className="size-4 accent-primary"
             />
           </label>
-          <Button type="button" onClick={requestRecommendation} disabled={isPending}>
+          <Button className="bg-[linear-gradient(135deg,var(--signal),#ff9b52)] text-signal-foreground hover:opacity-95" type="button" onClick={requestRecommendation} disabled={isPending}>
             <Route />
             {isPending ? "Planning..." : "Plan a trip for me"}
           </Button>
@@ -101,16 +101,16 @@ export function TripPlanner({ resorts }: Props) {
       </section>
 
       <section className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
+        <div className="slopetrip-panel rounded-lg border p-5">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Manual trip board</h2>
+            <h2 className="text-lg font-semibold text-[color:var(--pine)]">Manual trip board</h2>
             <Badge variant="outline">${manualCost.toLocaleString()} est.</Badge>
           </div>
           <div className="mt-4 flex flex-col gap-3">
             {resorts.slice(0, 6).map((resort) => (
-              <label key={resort.id} className="flex items-center justify-between rounded-md border border-border bg-background p-3">
+              <label key={resort.id} className="slopetrip-ticket-edge flex items-center justify-between rounded-md border border-border bg-white/72 p-3 shadow-sm">
                 <span>
-                  <span className="block text-sm font-medium">{resort.name}</span>
+                  <span className="block text-sm font-medium text-[color:var(--pine)]">{resort.name}</span>
                   <span className="text-xs text-muted-foreground">
                     ${resort.ticketEstimateUsd} ticket - {resort.condition.snowfall7DayIn}&quot; snow
                   </span>
@@ -132,19 +132,19 @@ export function TripPlanner({ resorts }: Props) {
           </div>
         </div>
 
-        <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
-          <h2 className="text-lg font-semibold">Recommended itinerary</h2>
+        <div className="slopetrip-panel rounded-lg border p-5">
+          <h2 className="text-lg font-semibold text-[color:var(--pine)]">Recommended itinerary</h2>
           {result ? (
             <div className="mt-4 flex flex-col gap-4">
               <div>
                 <Badge variant={result.confidence === "model" ? "signal" : "secondary"}>
                   {result.confidence === "model" ? "Gemini assisted" : "Demo scoring"}
                 </Badge>
-                <h3 className="mt-3 text-xl font-semibold">{result.title}</h3>
+                <h3 className="mt-3 text-xl font-semibold text-[color:var(--pine)]">{result.title}</h3>
                 <p className="mt-2 text-sm text-muted-foreground">{result.summary}</p>
               </div>
               {result.stops.map((stop) => (
-                <div key={`${stop.resortId}-${stop.day}`} className="rounded-md border border-border bg-background p-3">
+                <div key={`${stop.resortId}-${stop.day}`} className="slopetrip-ticket-edge rounded-md border border-border bg-white/72 p-3 shadow-sm">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-medium">Day {stop.day}: {stop.resortName}</span>
                     <Badge variant="outline">Score {stop.score}</Badge>
@@ -161,7 +161,7 @@ export function TripPlanner({ resorts }: Props) {
               ))}
             </div>
           ) : (
-            <div className="mt-4 rounded-md border border-dashed border-border bg-background p-5 text-sm text-muted-foreground">
+            <div className="mt-4 rounded-md border border-dashed border-border bg-white/62 p-5 text-sm text-muted-foreground">
               Generate a plan to see a day-by-day resort recommendation.
             </div>
           )}

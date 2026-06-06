@@ -36,3 +36,19 @@ export const routeMatrixRequestSchema = z.object({
   }),
   resortIds: z.array(z.string().trim().min(1)).min(1).max(10),
 });
+
+export const tripChatRequestSchema = z.object({
+  messages: z
+    .array(
+      z.object({
+        role: z.enum(["user", "assistant"]),
+        content: z.string().trim().min(1).max(1200),
+      }),
+    )
+    .min(1)
+    .max(12),
+  selectedResortId: z.string().trim().min(1).optional(),
+  abilityLevel: abilityLevelSchema.optional(),
+  region: z.union([resortRegionSchema, z.literal("all")]).optional(),
+  query: z.string().trim().max(120).optional(),
+});
