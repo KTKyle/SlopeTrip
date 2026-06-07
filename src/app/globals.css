@@ -107,6 +107,68 @@ textarea {
   backdrop-filter: blur(8px);
 }
 
+.slopetrip-filter-panel {
+  backdrop-filter: none;
+}
+
+.slopetrip-resort-scroll {
+  contain: layout paint;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.slopetrip-planner {
+  content-visibility: auto;
+  contain-intrinsic-size: 920px;
+}
+
+.slopetrip-planner .slopetrip-panel {
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 96%), rgb(248 253 255 / 94%)),
+    var(--card);
+  box-shadow: 0 8px 22px rgb(8 42 49 / 8%);
+  backdrop-filter: none;
+}
+
+.slopetrip-list-row,
+.slopetrip-route-day,
+.slopetrip-stay-block,
+.slopetrip-selected-mountain,
+.slopetrip-result-stop {
+  content-visibility: auto;
+}
+
+.slopetrip-list-row {
+  contain-intrinsic-size: 68px;
+  box-shadow: none;
+}
+
+.slopetrip-route-day,
+.slopetrip-stay-block,
+.slopetrip-selected-mountain,
+.slopetrip-result-stop {
+  contain-intrinsic-size: 82px;
+  box-shadow: none;
+}
+
+.slopetrip-horizontal-strip {
+  display: grid;
+  grid-auto-columns: max-content;
+  grid-auto-flow: column;
+  gap: 0.5rem;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 0.25rem;
+  overscroll-behavior-inline: contain;
+  scrollbar-gutter: stable;
+  scroll-snap-type: x proximity;
+}
+
+.slopetrip-horizontal-strip > * {
+  scroll-snap-align: start;
+}
+
 .slopetrip-map-frame {
   contain: layout paint style;
   box-shadow:
@@ -149,7 +211,6 @@ textarea {
     var(--card);
 }
 
-.slopetrip-resort-row,
 .slopetrip-chat-message {
   content-visibility: auto;
   contain-intrinsic-size: 72px;

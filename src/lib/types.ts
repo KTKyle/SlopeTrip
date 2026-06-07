@@ -2,6 +2,13 @@ export type AbilityLevel = "beginner" | "intermediate" | "expert";
 
 export type ResortRegion = "northeast" | "midwest" | "rockies" | "west" | "pacific";
 
+export type ResortPassAffiliation =
+  | "epic"
+  | "ikon"
+  | "new-england"
+  | "indy"
+  | "independent";
+
 export type TripBudget = {
   maxTotalUsd: number;
   includeRentals: boolean;
@@ -39,6 +46,7 @@ export type Resort = {
   lodgingEstimateUsd: number;
   imageUrl: string;
   highlights: string[];
+  passAffiliations: ResortPassAffiliation[];
   condition: ResortConditionSnapshot;
 };
 
@@ -58,6 +66,7 @@ export type TripRecommendationRequest = {
   rentsGear: boolean;
   maxDriveHours: number;
   preferredRegion?: ResortRegion;
+  resortIds?: string[];
   homeLocationLabel?: string;
   homeLatitude?: number;
   homeLongitude?: number;

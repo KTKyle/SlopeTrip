@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { apiError, formatZodError, parseJsonBody } from "@/lib/api";
 import { computeRouteMatrix } from "@/lib/route-estimates";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { routeMatrixRequestSchema } from "@/lib/validation";
@@ -9,14 +10,23 @@ export async function POST(request: Request) {
   const rate = checkRateLimit(`routes:${ip}`, limit);
 
   if (!rate.allowed) {
-    return NextResponse.json({ error: "Too many route requests" }, { status: 429 });
+    return apiError("Too many route requests", 429);
   }
 
-  const parsed = routeMatrixRequestSchema.safeParse(await request.json());
+  const body = await parseJsonBody(request);
+  if (body.error) {
+    return apiError(body.error, 400);
+  }
+
+  const parsed = routeMatrixRequestSchema.safeParse(body.data);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid route matrix request" }, { status: 400 });
+    return apiError("Invalid route matrix request", 400, formatZodError(parsed.error));
   }
 
-  const routes = await computeRouteMatrix(parsed.data);
-  return NextResponse.json({ routes });
+  try {
+    const routes = await computeRouteMatrix(parsed.data);
+    return NextResponse.json({ routes });
+  } catch {
+    return apiError("Unable to estimate routes right now", 500);
+  }
 }

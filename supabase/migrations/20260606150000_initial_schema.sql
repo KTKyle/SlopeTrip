@@ -43,6 +43,7 @@ create table public.resorts (
   lodging_estimate_usd integer not null,
   image_url text not null,
   highlights text[] not null default '{}',
+  pass_affiliations text[] not null default '{}',
   created_at timestamptz not null default now()
 );
 

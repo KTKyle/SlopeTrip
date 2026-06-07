@@ -34,16 +34,23 @@ export async function recommendTrip(
     JSON.stringify({ request: sanitizeTripRequest(request), localRecommendation: demo }),
   ].join("\n\n");
 
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: prompt,
-  });
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+    });
 
-  return {
-    ...demo,
-    confidence: "model",
-    summary: response.text?.slice(0, 800) || demo.summary,
-  };
+    return {
+      ...demo,
+      confidence: "model",
+      summary: response.text?.slice(0, 800) || demo.summary,
+    };
+  } catch {
+    return {
+      ...demo,
+      summary: `${demo.summary} Gemini was unavailable, so this plan used local scoring.`,
+    };
+  }
 }
 
 export async function answerTripQuestion(request: TripChatRequest) {
@@ -80,15 +87,22 @@ export async function answerTripQuestion(request: TripChatRequest) {
     }),
   ].join("\n\n");
 
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: prompt,
-  });
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+    });
 
-  return {
-    confidence: "model" as const,
-    answer: response.text?.slice(0, 1200) || buildDemoChatAnswer(request, selected),
-  };
+    return {
+      confidence: "model" as const,
+      answer: response.text?.slice(0, 1200) || buildDemoChatAnswer(request, selected),
+    };
+  } catch {
+    return {
+      confidence: "demo" as const,
+      answer: `${buildDemoChatAnswer(request, selected)} Gemini was unavailable, so I used SlopeTrip's local trip context.`,
+    };
+  }
 }
 
 function sanitizeTripRequest(request: TripRecommendationRequest) {
@@ -113,7 +127,6 @@ function summarizeResort(resort: (typeof resorts)[number]) {
     difficulty: resort.difficulty,
     ticketEstimateUsd: resort.ticketEstimateUsd,
     rentalEstimateUsd: resort.rentalEstimateUsd,
-    lodgingEstimateUsd: resort.lodgingEstimateUsd,
     snowfall7DayIn: resort.condition.snowfall7DayIn,
     highlights: resort.highlights,
   };
@@ -128,8 +141,8 @@ function buildDemoChatAnswer(request: TripChatRequest, selected?: (typeof resort
   }
 
   if (latestQuestion.includes("cost") || latestQuestion.includes("budget") || latestQuestion.includes("price")) {
-    const dayCost = resort.ticketEstimateUsd + resort.rentalEstimateUsd + resort.lodgingEstimateUsd;
-    return `For ${resort.name}, a rough per-day baseline is about $${dayCost}: $${resort.ticketEstimateUsd} lift ticket, $${resort.rentalEstimateUsd} rentals, and $${resort.lodgingEstimateUsd} lodging. Food, parking, lessons, and travel can move that number quickly.`;
+    const dayCost = resort.ticketEstimateUsd + resort.rentalEstimateUsd;
+    return `For ${resort.name}, a rough per-day baseline is about $${dayCost}: $${resort.ticketEstimateUsd} lift ticket and $${resort.rentalEstimateUsd} rentals. Lodging is best searched separately because rates move by date, party size, and availability.`;
   }
 
   if (latestQuestion.includes("time") || latestQuestion.includes("drive") || latestQuestion.includes("travel")) {

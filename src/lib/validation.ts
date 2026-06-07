@@ -23,9 +23,33 @@ export const tripRecommendationRequestSchema = z.object({
   rentsGear: z.coerce.boolean(),
   maxDriveHours: z.coerce.number().min(1).max(40),
   preferredRegion: resortRegionSchema.optional(),
+  resortIds: z.array(z.string().trim().min(1)).min(1).max(10).optional(),
   homeLocationLabel: z.string().trim().max(120).optional(),
   homeLatitude: z.coerce.number().min(18).max(72).optional(),
   homeLongitude: z.coerce.number().min(-180).max(-60).optional(),
+});
+
+export const saveTripRequestSchema = z.object({
+  request: tripRecommendationRequestSchema,
+  result: z.object({
+    title: z.string().trim().min(1).max(160),
+    totalEstimatedCostUsd: z.coerce.number().int().min(0).max(500000),
+    confidence: z.enum(["demo", "model"]),
+    summary: z.string().trim().min(1).max(1200),
+    stops: z
+      .array(
+        z.object({
+          resortId: z.string().trim().min(1),
+          resortName: z.string().trim().min(1).max(160),
+          day: z.coerce.number().int().min(1).max(14),
+          estimatedCostUsd: z.coerce.number().int().min(0).max(500000),
+          score: z.coerce.number().int(),
+          reasons: z.array(z.string().trim().min(1).max(240)).max(6),
+        }),
+      )
+      .min(1)
+      .max(14),
+  }),
 });
 
 export const routeMatrixRequestSchema = z.object({

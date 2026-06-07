@@ -12,14 +12,14 @@ const baseRequest: TripRecommendationRequest = {
   budget: {
     maxTotalUsd: 1200,
     includeRentals: false,
-    includeLodging: true,
+    includeLodging: false,
   },
 };
 
 describe("recommendation scoring", () => {
-  it("estimates trip cost from tickets, rentals, and lodging", () => {
+  it("estimates trip cost from tickets and rentals without lodging assumptions", () => {
     const resort = resorts.find((item) => item.id === "stowe")!;
-    expect(estimateTripCost(resort, baseRequest)).toBe(917);
+    expect(estimateTripCost(resort, baseRequest)).toBe(537);
   });
 
   it("scores ability and preferred region", () => {
@@ -30,7 +30,7 @@ describe("recommendation scoring", () => {
 
   it("returns a bounded demo itinerary", () => {
     const result = buildDemoRecommendation(baseRequest);
-    expect(result.stops.length).toBeLessThanOrEqual(baseRequest.days);
+    expect(result.stops).toHaveLength(baseRequest.days);
     expect(result.totalEstimatedCostUsd).toBeGreaterThan(0);
     expect(result.confidence).toBe("demo");
   });

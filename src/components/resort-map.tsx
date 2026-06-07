@@ -3,7 +3,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type * as Leaflet from "leaflet";
 import { Bot, MapPin, Search, Send, SlidersHorizontal, Snowflake, Sparkles, X } from "lucide-react";
-import type { AbilityLevel, Resort, ResortRegion } from "@/lib/types";
+import type { AbilityLevel, Resort, ResortPassAffiliation, ResortRegion } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,16 @@ type Props = {
 
 const levels: AbilityLevel[] = ["beginner", "intermediate", "expert"];
 const regions: Array<ResortRegion | "all"> = ["all", "northeast", "midwest", "rockies", "west", "pacific"];
+const passFilters: Array<ResortPassAffiliation | "all"> = ["all", "epic", "ikon", "new-england", "indy", "independent"];
 const quickPrompts = ["What gear should I bring?", "Estimate my trip cost", "Which resort fits me?"];
+
+const passLabels: Record<ResortPassAffiliation, string> = {
+  epic: "Epic",
+  ikon: "Ikon",
+  "new-england": "New England",
+  indy: "Indy",
+  independent: "Local",
+};
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -34,6 +43,7 @@ export function ResortMap({ resorts }: Props) {
   const [query, setQuery] = useState("");
   const [ability, setAbility] = useState<AbilityLevel>("intermediate");
   const [region, setRegion] = useState<ResortRegion | "all">("all");
+  const [passFilter, setPassFilter] = useState<ResortPassAffiliation | "all">("all");
   const [mapReady, setMapReady] = useState(false);
   const resortById = useMemo(() => new Map(resorts.map((resort) => [resort.id, resort])), [resorts]);
   const selected = selectedId ? resortById.get(selectedId) : undefined;
@@ -46,9 +56,10 @@ export function ResortMap({ resorts }: Props) {
           .toLowerCase()
           .includes(query.toLowerCase());
         const matchesRegion = region === "all" || resort.region === region;
-        return matchesQuery && matchesRegion;
+        const matchesPass = passFilter === "all" || resort.passAffiliations.includes(passFilter);
+        return matchesQuery && matchesRegion && matchesPass;
       }),
-    [query, region, resorts],
+    [passFilter, query, region, resorts],
   );
 
   const selectResort = useCallback((id: string) => {
@@ -163,9 +174,11 @@ export function ResortMap({ resorts }: Props) {
       <FilterPanel
         ability={ability}
         onAbilityChange={setAbility}
+        onPassFilterChange={setPassFilter}
         onQueryChange={setQuery}
         onRegionChange={setRegion}
         onSelect={selectResort}
+        passFilter={passFilter}
         region={region}
         resorts={filtered}
         selectedId={selectedId}
@@ -196,6 +209,13 @@ export function ResortMap({ resorts }: Props) {
             <div className="flex flex-col gap-3 p-4">
               <div>
                 <Badge variant="signal">{selected.region}</Badge>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {selected.passAffiliations.map((pass) => (
+                    <Badge key={pass} variant={pass === "independent" ? "outline" : "secondary"}>
+                      {passLabels[pass]}
+                    </Badge>
+                  ))}
+                </div>
                 <h2 className="mt-2 text-xl font-semibold text-[color:var(--pine)]">{selected.name}</h2>
                 <p className="text-sm text-muted-foreground">
                   {selected.state} - {selected.acres.toLocaleString()} skiable acres - {selected.trails} trails
@@ -252,18 +272,22 @@ export function ResortMap({ resorts }: Props) {
 const FilterPanel = memo(function FilterPanel({
   ability,
   onAbilityChange,
+  onPassFilterChange,
   onQueryChange,
   onRegionChange,
   onSelect,
+  passFilter,
   region,
   resorts,
   selectedId,
 }: {
   ability: AbilityLevel;
   onAbilityChange: (ability: AbilityLevel) => void;
+  onPassFilterChange: (pass: ResortPassAffiliation | "all") => void;
   onQueryChange: (query: string) => void;
   onRegionChange: (region: ResortRegion | "all") => void;
   onSelect: (id: string) => void;
+  passFilter: ResortPassAffiliation | "all";
   region: ResortRegion | "all";
   resorts: Resort[];
   selectedId: string | null;
@@ -276,7 +300,7 @@ const FilterPanel = memo(function FilterPanel({
   }, [localQuery, onQueryChange]);
 
   return (
-    <aside className="slopetrip-panel flex min-h-0 flex-col gap-3 overflow-hidden rounded-lg border p-4">
+    <aside className="slopetrip-panel slopetrip-filter-panel flex min-h-0 flex-col gap-3 overflow-hidden rounded-lg border p-4">
       <div>
         <p className="flex items-center gap-2 text-xs font-semibold uppercase text-muted-foreground">
           <Snowflake className="size-3.5 text-[color:var(--glacier)]" />
@@ -333,7 +357,27 @@ const FilterPanel = memo(function FilterPanel({
           ))}
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+      <div className="flex flex-col gap-2">
+        <span className="text-sm font-medium">Pass</span>
+        <div className="flex flex-wrap gap-2">
+          {passFilters.map((item) => (
+            <button
+              key={item}
+              className={cn(
+                "rounded-md border px-2.5 py-1.5 text-xs font-medium capitalize shadow-sm transition",
+                passFilter === item
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-white/66 text-muted-foreground hover:border-primary/40 hover:text-foreground",
+              )}
+              onClick={() => onPassFilterChange(item)}
+              type="button"
+            >
+              {item === "all" ? "all" : passLabels[item]}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="slopetrip-resort-scroll min-h-0 flex-1 overflow-y-auto pr-1">
         <ResortList resorts={resorts} selectedId={selectedId} onSelect={onSelect} />
       </div>
     </aside>
@@ -357,7 +401,7 @@ const ResortList = memo(function ResortList({
           type="button"
           onClick={() => onSelect(resort.id)}
           className={cn(
-            "slopetrip-resort-row slopetrip-ticket-edge rounded-md border p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-primary/50",
+            "slopetrip-resort-row slopetrip-ticket-edge rounded-md border p-3 text-left shadow-sm transition-colors hover:border-primary/50 hover:bg-white/90",
             selectedId === resort.id
               ? "border-primary bg-primary/10 shadow-[0_12px_28px_rgb(7_63_75_/_13%)]"
               : "border-border bg-white/72",
@@ -367,6 +411,16 @@ const ResortList = memo(function ResortList({
           <span className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
             <Snowflake className="size-3.5 text-[color:var(--glacier)]" />
             {resort.state} - {resort.condition.snowfall7DayIn}&quot; 7-day snowfall
+          </span>
+          <span className="mt-2 flex flex-wrap gap-1.5">
+            {resort.passAffiliations.map((pass) => (
+              <span
+                key={pass}
+                className="rounded-sm border border-border/80 bg-white/72 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+              >
+                {passLabels[pass]}
+              </span>
+            ))}
           </span>
         </button>
       ))}

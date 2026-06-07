@@ -39,11 +39,12 @@ export function estimateTripCost(resort: Resort, request: TripRecommendationRequ
     request.rentsGear || request.budget.includeRentals
       ? resort.rentalEstimateUsd * request.days
       : 0;
-  const lodging = request.budget.includeLodging
-    ? resort.lodgingEstimateUsd * Math.max(1, request.days - 1)
-    : 0;
 
-  return liftTickets + rentals + lodging;
+  return liftTickets + rentals;
+}
+
+function estimateResortDayCost(resort: Resort, request: TripRecommendationRequest) {
+  return resort.ticketEstimateUsd + (request.rentsGear || request.budget.includeRentals ? resort.rentalEstimateUsd : 0);
 }
 
 export function scoreResort(resort: Resort, request: TripRecommendationRequest) {
@@ -69,7 +70,12 @@ export function scoreResort(resort: Resort, request: TripRecommendationRequest) 
 export function buildDemoRecommendation(
   request: TripRecommendationRequest,
 ): TripRecommendationResult {
-  const ranked = resorts
+  const requestedResortIds = request.resortIds ? new Set(request.resortIds) : null;
+  const candidateResorts = requestedResortIds
+    ? resorts.filter((resort) => requestedResortIds.has(resort.id))
+    : resorts;
+
+  const ranked = candidateResorts
     .map((resort) => ({
       resort,
       score: scoreResort(resort, request),
@@ -79,25 +85,28 @@ export function buildDemoRecommendation(
     .sort((a, b) => b.score - a.score)
     .slice(0, Math.min(3, request.days));
 
-  const stops = ranked.map(({ resort, score, estimatedCostUsd }, index) => ({
-    resortId: resort.id,
-    resortName: resort.name,
-    day: index + 1,
-    estimatedCostUsd,
-    score,
-    reasons: [
-      `${resort.difficulty[abilityWeights[request.abilityLevel]]}% ${request.abilityLevel} terrain fit`,
-      `${resort.condition.snowfall7DayIn}" reported 7-day snowfall`,
-      request.preferredRegion === resort.region ? "Matches preferred region" : "Strong overall value",
-    ],
-  }));
+  const stops = Array.from({ length: request.days }, (_, index) => ranked[index % ranked.length])
+    .filter((item): item is (typeof ranked)[number] => Boolean(item))
+    .map(({ resort, score }, index) => ({
+      resortId: resort.id,
+      resortName: resort.name,
+      day: index + 1,
+      estimatedCostUsd: estimateResortDayCost(resort, request),
+      score,
+      reasons: [
+        `${resort.difficulty[abilityWeights[request.abilityLevel]]}% ${request.abilityLevel} terrain fit`,
+        `${resort.condition.snowfall7DayIn}" reported 7-day snowfall`,
+        request.preferredRegion === resort.region ? "Matches preferred region" : "Strong overall value",
+      ],
+    }));
 
   return {
     title: `${request.days}-day ${request.abilityLevel} ski plan`,
     totalEstimatedCostUsd: stops.reduce((total, stop) => total + stop.estimatedCostUsd, 0),
     confidence: "demo",
-    summary:
-      "Generated from SlopeTrip's local scoring model. Add a Gemini key to enable richer narrative planning.",
+    summary: stops.length
+      ? "Generated from SlopeTrip's local scoring model. Lodging is kept separate so you can search stays after choosing the route."
+      : "No selected resort fits the current budget guardrail. Raise the budget or choose lower-cost mountains.",
     stops,
   };
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { apiError, formatZodError, parseJsonBody } from "@/lib/api";
 import { recommendTrip } from "@/lib/gemini";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { tripRecommendationRequestSchema } from "@/lib/validation";
@@ -9,14 +10,23 @@ export async function POST(request: Request) {
   const rate = checkRateLimit(`ai:${ip}`, limit);
 
   if (!rate.allowed) {
-    return NextResponse.json({ error: "Too many recommendation requests" }, { status: 429 });
+    return apiError("Too many recommendation requests", 429);
   }
 
-  const parsed = tripRecommendationRequestSchema.safeParse(await request.json());
+  const body = await parseJsonBody(request);
+  if (body.error) {
+    return apiError(body.error, 400);
+  }
+
+  const parsed = tripRecommendationRequestSchema.safeParse(body.data);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid recommendation request" }, { status: 400 });
+    return apiError("Invalid recommendation request", 400, formatZodError(parsed.error));
   }
 
-  const result = await recommendTrip(parsed.data);
-  return NextResponse.json(result);
+  try {
+    const result = await recommendTrip(parsed.data);
+    return NextResponse.json(result);
+  } catch {
+    return apiError("Unable to generate recommendation right now", 500);
+  }
 }

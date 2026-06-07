@@ -46,6 +46,17 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
             )}
           </div>
         </div>
+        <nav className="mx-auto grid max-w-[1920px] grid-cols-3 border-t border-white/10 px-2 pb-2 md:hidden">
+          <Link className="rounded-md px-2 py-2 text-center text-xs font-medium text-white/78 hover:bg-white/10 hover:text-white" href="/">
+            Explore
+          </Link>
+          <Link className="rounded-md px-2 py-2 text-center text-xs font-medium text-white/78 hover:bg-white/10 hover:text-white" href="/plan">
+            Plan
+          </Link>
+          <Link className="rounded-md px-2 py-2 text-center text-xs font-medium text-white/78 hover:bg-white/10 hover:text-white" href="/profile">
+            Profile
+          </Link>
+        </nav>
       </header>
       {children}
     </div>

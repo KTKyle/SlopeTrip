@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { apiError, formatZodError, parseJsonBody } from "@/lib/api";
 import { answerTripQuestion } from "@/lib/gemini";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { tripChatRequestSchema } from "@/lib/validation";
@@ -9,14 +10,23 @@ export async function POST(request: Request) {
   const rate = checkRateLimit(`trip-chat:${ip}`, limit);
 
   if (!rate.allowed) {
-    return NextResponse.json({ error: "Too many chat requests" }, { status: 429 });
+    return apiError("Too many chat requests", 429);
   }
 
-  const parsed = tripChatRequestSchema.safeParse(await request.json());
+  const body = await parseJsonBody(request);
+  if (body.error) {
+    return apiError(body.error, 400);
+  }
+
+  const parsed = tripChatRequestSchema.safeParse(body.data);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid chat request" }, { status: 400 });
+    return apiError("Invalid chat request", 400, formatZodError(parsed.error));
   }
 
-  const result = await answerTripQuestion(parsed.data);
-  return NextResponse.json(result);
+  try {
+    const result = await answerTripQuestion(parsed.data);
+    return NextResponse.json(result);
+  } catch {
+    return apiError("Unable to answer trip question right now", 500);
+  }
 }
