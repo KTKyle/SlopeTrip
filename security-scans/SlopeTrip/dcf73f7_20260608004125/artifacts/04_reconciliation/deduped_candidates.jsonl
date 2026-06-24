@@ -1,0 +1,8 @@
+{"candidate_id":"CAND-RLS-001","raw_candidate_ids":["RLS-001","UI-001","TRIPAPI-001","TRIPAPI-002","PLANUI-3"],"disposition":"reportable_fixed"}
+{"candidate_id":"CAND-CRON-001","raw_candidate_ids":["RLS-002"],"disposition":"reportable_fixed"}
+{"candidate_id":"CAND-AI-001","raw_candidate_ids":["AI-001","AI-002","AI-003","PLANUI-2"],"disposition":"reportable_fixed"}
+{"candidate_id":"CAND-BODY-001","raw_candidate_ids":["AI-005"],"disposition":"reportable_fixed"}
+{"candidate_id":"CAND-AIPRIV-001","raw_candidate_ids":["AI-004"],"disposition":"reportable_fixed"}
+{"candidate_id":"CAND-ERR-001","raw_candidate_ids":["UI-002"],"disposition":"reportable_fixed"}
+{"candidate_id":"CAND-VAL-001","raw_candidate_ids":["TRIPAPI-003","TRIPAPI-004"],"disposition":"reportable_fixed"}
+{"candidate_id":"DEFER-SELF-SAVE-001","raw_candidate_ids":["PLANUI-1"],"disposition":"deferred_low_risk"}

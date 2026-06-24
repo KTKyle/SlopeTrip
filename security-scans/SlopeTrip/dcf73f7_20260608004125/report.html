@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SlopeTrip Codex Security Report</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 2rem; color: #17212b; line-height: 1.5; }
+      main { max-width: 980px; margin: 0 auto; }
+      h1, h2, h3 { color: #073f4b; }
+      code { background: #eef3f5; padding: 0.1rem 0.25rem; border-radius: 4px; }
+      .status { border: 1px solid #bdd7ce; background: #f2fbf7; padding: 1rem; border-radius: 8px; }
+      .finding { border-top: 1px solid #d8e2e6; padding-top: 1rem; margin-top: 1rem; }
+      ul { padding-left: 1.25rem; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>SlopeTrip Codex Security Report</h1>
+      <p><strong>Scan id:</strong> <code>dcf73f7_20260608004125</code></p>
+      <section class="status">
+        <h2>Executive Summary</h2>
+        <p>Seven reportable issues were fixed: public share enumeration, fail-open service-role sync, spoofable rate-limit identity, oversized JSON parsing, Gemini prompt minimization, raw error reflection, and loose share/resort validation.</p>
+        <p>One low-risk product-integrity item remains deferred: signed/server-bound recommendation saves for self-owned itinerary content.</p>
+      </section>
+      <section>
+        <h2>Fixed Findings</h2>
+        <div class="finding"><h3>CAND-RLS-001: Public Share Enumeration</h3><p>Dropped broad public share RLS policies, moved public shares to server-only exact-token lookup, and added explicit owner filters.</p></div>
+        <div class="finding"><h3>CAND-CRON-001: Fail-Open Service-Role Sync</h3><p>Condition sync now fails closed unless <code>CRON_SECRET</code> is configured and supplied.</p></div>
+        <div class="finding"><h3>CAND-AI-001: Spoofable Rate-Limit Identity</h3><p>Public API rate limits no longer trust forwarded IP headers by default.</p></div>
+        <div class="finding"><h3>CAND-BODY-001: Oversized JSON Parsing</h3><p>Added a default 64KB Content-Length guard and 413 response propagation.</p></div>
+        <div class="finding"><h3>CAND-AIPRIV-001: Gemini Prompt Minimization</h3><p>Removed origin-derived Drive fit factors from Gemini prompt context.</p></div>
+        <div class="finding"><h3>CAND-ERR-001: Raw Error Reflection</h3><p>Mapped raw provider/query errors to safe user-facing messages.</p></div>
+        <div class="finding"><h3>CAND-VAL-001: Loose Share and Resort Validation</h3><p>Strict share booleans, bounded resort ids, and known-resort/day validation are now enforced.</p></div>
+      </section>
+      <section>
+        <h2>Verification</h2>
+        <ul>
+          <li><code>tsc --noEmit</code>: passed.</li>
+          <li><code>vitest run</code>: passed, 9 files / 35 tests.</li>
+          <li><code>eslint .</code>: passed.</li>
+          <li><code>next build --turbopack</code>: blocked by Windows/OneDrive EPERM unlink on generated <code>.next</code> path.</li>
+        </ul>
+      </section>
+    </main>
+  </body>
+</html>
