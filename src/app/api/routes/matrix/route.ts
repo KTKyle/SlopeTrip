@@ -1,21 +1,23 @@
 import { NextResponse } from "next/server";
 import { apiError, formatZodError, parseJsonBody } from "@/lib/api";
 import { computeRouteMatrix } from "@/lib/route-estimates";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { addRateLimitHeaders, logApiEvent } from "@/lib/observability";
+import { checkRateLimit, getRateLimitKey } from "@/lib/rate-limit";
 import { routeMatrixRequestSchema } from "@/lib/validation";
 
 export async function POST(request: Request) {
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0] ?? "local";
+  const rateLimitKey = getRateLimitKey(request, "routes");
   const limit = Number(process.env.ROUTE_MATRIX_RATE_LIMIT_PER_HOUR ?? 60);
-  const rate = checkRateLimit(`routes:${ip}`, limit);
+  const rate = checkRateLimit(rateLimitKey, limit);
 
   if (!rate.allowed) {
-    return apiError("Too many route requests", 429);
+    logApiEvent("routes.matrix.rate_limited", { rateLimitKey });
+    return addRateLimitHeaders(apiError("Too many route requests", 429), rate);
   }
 
   const body = await parseJsonBody(request);
   if (body.error) {
-    return apiError(body.error, 400);
+    return apiError(body.error, body.status ?? 400);
   }
 
   const parsed = routeMatrixRequestSchema.safeParse(body.data);
@@ -25,8 +27,10 @@ export async function POST(request: Request) {
 
   try {
     const routes = await computeRouteMatrix(parsed.data);
-    return NextResponse.json({ routes });
+    logApiEvent("routes.matrix.succeeded", { count: routes.length });
+    return addRateLimitHeaders(NextResponse.json({ routes }), rate);
   } catch {
+    logApiEvent("routes.matrix.failed");
     return apiError("Unable to estimate routes right now", 500);
   }
 }

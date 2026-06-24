@@ -3,6 +3,8 @@ import { buildDemoRecommendation } from "@/lib/recommendation";
 import { getResortById, resorts } from "@/lib/resorts";
 import type { AbilityLevel, ResortRegion, TripRecommendationRequest, TripRecommendationResult } from "@/lib/types";
 
+const recommendationPromptVersion = "slopetrip-recommendation-v2";
+
 type TripChatMessage = {
   role: "user" | "assistant";
   content: string;
@@ -31,7 +33,10 @@ export async function recommendTrip(
     "Create a concise ski trip recommendation using only this anonymized trip planning context.",
     "Do not infer identity, exact address, health status, or sensitive traits.",
     "Return a short human-readable summary. Keep the local scoring result as the source of truth.",
-    JSON.stringify({ request: sanitizeTripRequest(request), localRecommendation: demo }),
+    JSON.stringify({
+      request: sanitizeTripRequest(request),
+      localRecommendation: sanitizeRecommendationForModel(demo),
+    }),
   ].join("\n\n");
 
   try {
@@ -44,11 +49,20 @@ export async function recommendTrip(
       ...demo,
       confidence: "model",
       summary: response.text?.slice(0, 800) || demo.summary,
+      modelMetadata: {
+        engine: "gemini-2.5-flash",
+        promptVersion: recommendationPromptVersion,
+      },
     };
   } catch {
     return {
       ...demo,
       summary: `${demo.summary} Gemini was unavailable, so this plan used local scoring.`,
+      modelMetadata: {
+        engine: "demo-scoring",
+        promptVersion: recommendationPromptVersion,
+        fallbackReason: "Gemini was unavailable",
+      },
     };
   }
 }
@@ -113,7 +127,33 @@ function sanitizeTripRequest(request: TripRecommendationRequest) {
     rentsGear: request.rentsGear,
     maxDriveHours: request.maxDriveHours,
     preferredRegion: request.preferredRegion,
+    passAffiliations: request.passAffiliations,
     homeRegionHint: request.homeLocationLabel?.split(",").slice(-1).join(",").trim(),
+  };
+}
+
+function sanitizeRecommendationForModel(result: TripRecommendationResult) {
+  return {
+    title: result.title,
+    totalEstimatedCostUsd: result.totalEstimatedCostUsd,
+    confidence: result.confidence,
+    summary: result.summary,
+    stops: result.stops.map((stop) => ({
+      resortId: stop.resortId,
+      resortName: stop.resortName,
+      day: stop.day,
+      estimatedCostUsd: stop.estimatedCostUsd,
+      score: stop.score,
+      reasons: stop.reasons,
+      factors: stop.factors
+        ?.filter((factor) => factor.label !== "Drive fit")
+        .map((factor) => ({
+          label: factor.label,
+          value: factor.value,
+          tone: factor.tone,
+        })),
+    })),
+    safetyNotes: result.safetyNotes,
   };
 }
 

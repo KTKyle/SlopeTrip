@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { POST } from "@/app/api/trips/route";
-import { saveGeneratedTripForCurrentUser } from "@/lib/supabase/data";
+import { GET, POST } from "@/app/api/trips/route";
+import { getTripsForCurrentUser, saveGeneratedTripForCurrentUser } from "@/lib/supabase/data";
 
 vi.mock("@/lib/supabase/data", () => ({
+  getTripsForCurrentUser: vi.fn(),
   saveGeneratedTripForCurrentUser: vi.fn(),
 }));
 
@@ -40,7 +41,36 @@ const validPayload = {
 
 describe("saved trip API", () => {
   beforeEach(() => {
+    vi.mocked(getTripsForCurrentUser).mockReset();
     vi.mocked(saveGeneratedTripForCurrentUser).mockReset();
+  });
+
+  it("lists saved trips", async () => {
+    vi.mocked(getTripsForCurrentUser).mockResolvedValue([
+      {
+        id: "trip-123",
+        title: "Test trip",
+        days: 3,
+        budget_usd: 1200,
+        ability_level: "intermediate",
+        include_rentals: false,
+        include_lodging: false,
+        status: "active",
+        created_at: "2026-02-10T12:00:00Z",
+      },
+    ]);
+
+    const response = await GET();
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      trips: [
+        expect.objectContaining({
+          id: "trip-123",
+          title: "Test trip",
+        }),
+      ],
+    });
   });
 
   it("rejects malformed JSON", async () => {
@@ -109,5 +139,32 @@ describe("saved trip API", () => {
 
     expect(response.status).toBe(201);
     await expect(response.json()).resolves.toEqual({ tripId: "trip-123" });
+    expect(saveGeneratedTripForCurrentUser).toHaveBeenCalledWith(
+      validPayload.request,
+      validPayload.result,
+      { sourceTripId: undefined },
+    );
+  });
+
+  it("passes source trip ids for edited trip versions", async () => {
+    vi.mocked(saveGeneratedTripForCurrentUser).mockResolvedValue({
+      tripId: "trip-456",
+      error: null,
+    });
+
+    const sourceTripId = "00000000-0000-4000-8000-000000000001";
+    const response = await POST(
+      new Request("http://slopetrip.test/api/trips", {
+        method: "POST",
+        body: JSON.stringify({ ...validPayload, sourceTripId }),
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    expect(saveGeneratedTripForCurrentUser).toHaveBeenCalledWith(
+      validPayload.request,
+      validPayload.result,
+      { sourceTripId },
+    );
   });
 });

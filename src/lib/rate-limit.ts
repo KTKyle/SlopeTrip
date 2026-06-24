@@ -5,6 +5,18 @@ type Bucket = {
 
 const buckets = new Map<string, Bucket>();
 
+export function getRateLimitKey(request: Request, namespace: string) {
+  if (process.env.TRUST_PROXY_RATE_LIMIT_HEADERS !== "true") {
+    return `${namespace}:global`;
+  }
+
+  const realIp = request.headers.get("x-real-ip")?.trim();
+  const forwardedIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  const clientIp = realIp || forwardedIp;
+
+  return `${namespace}:${clientIp || "unknown"}`;
+}
+
 export function checkRateLimit(key: string, limit: number, windowMs = 60 * 60 * 1000) {
   const now = Date.now();
   const bucket = buckets.get(key);

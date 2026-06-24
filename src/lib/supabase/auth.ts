@@ -1,7 +1,8 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
-export async function getCurrentUser() {
+export const getCurrentUser = cache(async function getCurrentUser() {
   const supabase = await createClient();
   if (!supabase) return null;
 
@@ -10,7 +11,7 @@ export async function getCurrentUser() {
   } = await supabase.auth.getUser();
 
   return user;
-}
+});
 
 export async function requireUser() {
   const user = await getCurrentUser();

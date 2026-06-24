@@ -50,8 +50,8 @@
 
 body {
   background:
-    radial-gradient(circle at 12% -8%, rgb(120 212 232 / 38%), transparent 30rem),
-    radial-gradient(circle at 92% 4%, rgb(242 125 47 / 16%), transparent 22rem),
+    radial-gradient(circle at 12% -8%, rgb(120 212 232 / 28%), transparent 30rem),
+    radial-gradient(circle at 92% 4%, rgb(242 125 47 / 12%), transparent 22rem),
     linear-gradient(180deg, #f8fdff 0%, var(--background) 42%, #e7f5f8 100%);
   color: var(--foreground);
   font-family: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
@@ -82,6 +82,22 @@ textarea {
   font: inherit;
 }
 
+button,
+input,
+select,
+textarea {
+  accent-color: var(--primary);
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
 .leaflet-container {
   height: 100%;
   width: 100%;
@@ -97,12 +113,12 @@ textarea {
   contain: layout paint style;
   border-color: rgb(184 213 220 / 78%);
   background:
-    linear-gradient(180deg, rgb(255 255 255 / 92%), rgb(246 253 255 / 84%)),
-    linear-gradient(135deg, rgb(255 255 255 / 34%), transparent 34%),
-    linear-gradient(180deg, rgb(120 212 232 / 10%), transparent 44%),
+    linear-gradient(180deg, rgb(255 255 255 / 94%), rgb(246 253 255 / 88%)),
+    linear-gradient(135deg, rgb(255 255 255 / 28%), transparent 34%),
+    linear-gradient(180deg, rgb(120 212 232 / 7%), transparent 44%),
     var(--card);
   box-shadow:
-    0 14px 34px rgb(8 42 49 / 10%),
+    0 10px 26px rgb(8 42 49 / 8%),
     inset 0 1px 0 rgb(255 255 255 / 90%);
   backdrop-filter: blur(8px);
 }
@@ -111,8 +127,23 @@ textarea {
   backdrop-filter: none;
 }
 
+.slopetrip-filter-panel details,
+.slopetrip-config-section {
+  overflow: clip;
+}
+
+.slopetrip-filter-panel summary::-webkit-details-marker,
+.slopetrip-config-section summary::-webkit-details-marker {
+  display: none;
+}
+
 .slopetrip-resort-scroll {
   contain: layout paint;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.slopetrip-module-scroll {
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
 }
@@ -130,10 +161,15 @@ textarea {
   backdrop-filter: none;
 }
 
+.slopetrip-workbench-panel {
+  max-height: none;
+}
+
 .slopetrip-list-row,
 .slopetrip-route-day,
 .slopetrip-stay-block,
 .slopetrip-selected-mountain,
+.slopetrip-readiness-module,
 .slopetrip-result-stop {
   content-visibility: auto;
 }
@@ -146,6 +182,7 @@ textarea {
 .slopetrip-route-day,
 .slopetrip-stay-block,
 .slopetrip-selected-mountain,
+.slopetrip-readiness-module,
 .slopetrip-result-stop {
   contain-intrinsic-size: 82px;
   box-shadow: none;
@@ -169,10 +206,44 @@ textarea {
   scroll-snap-align: start;
 }
 
+.slopetrip-trip-canvas {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.slopetrip-trip-topline {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 1280px) {
+  .slopetrip-workbench {
+    align-items: stretch;
+  }
+
+  .slopetrip-workbench-panel {
+    max-height: 100%;
+    overflow: hidden;
+  }
+
+  .slopetrip-trip-canvas {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .slopetrip-trip-topline {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .slopetrip-stay-module,
+  .slopetrip-day-rail-module {
+    min-height: 0;
+  }
+}
+
 .slopetrip-map-frame {
   contain: layout paint style;
   box-shadow:
-    0 16px 42px rgb(8 42 49 / 14%),
+    0 12px 32px rgb(8 42 49 / 12%),
     inset 0 1px 0 rgb(255 255 255 / 75%);
 }
 
@@ -187,12 +258,12 @@ textarea {
 
 .slopetrip-map-frame::before {
   background:
-    linear-gradient(90deg, rgb(238 248 251 / 58%), transparent 20%, transparent 76%, rgb(238 248 251 / 44%)),
-    linear-gradient(180deg, rgb(255 255 255 / 40%), transparent 22%, transparent 74%, rgb(8 42 49 / 10%));
+    linear-gradient(90deg, rgb(238 248 251 / 42%), transparent 20%, transparent 76%, rgb(238 248 251 / 34%)),
+    linear-gradient(180deg, rgb(255 255 255 / 30%), transparent 22%, transparent 74%, rgb(8 42 49 / 8%));
 }
 
 .slopetrip-map-frame::after {
-  opacity: 0.24;
+  opacity: 0.16;
   background-image:
     repeating-linear-gradient(24deg, transparent 0 42px, rgb(7 63 75 / 14%) 43px, transparent 44px),
     repeating-linear-gradient(155deg, transparent 0 64px, rgb(33 167 198 / 14%) 65px, transparent 66px);
@@ -226,6 +297,17 @@ textarea {
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
 .slopetrip-map-pin {
   display: grid;
   width: 40px;
@@ -250,6 +332,31 @@ textarea {
   box-shadow:
     0 16px 34px rgb(242 125 47 / 36%),
     0 0 0 6px rgb(242 125 47 / 18%);
+}
+
+.slopetrip-trip-pin {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 12px;
+  font-weight: 800;
+  box-shadow:
+    0 10px 24px rgb(8 42 49 / 26%),
+    inset 0 1px 0 rgb(255 255 255 / 32%);
+}
+
+.slopetrip-trip-pin-start {
+  background: #0a6c7f;
+}
+
+.slopetrip-trip-pin-end {
+  background: var(--signal);
+  color: var(--signal-foreground);
 }
 
 ::-webkit-scrollbar {

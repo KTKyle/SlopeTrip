@@ -1,12 +1,22 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
 import type * as Leaflet from "leaflet";
-import { Bot, MapPin, Search, Send, SlidersHorizontal, Snowflake, Sparkles, X } from "lucide-react";
+import { Bot, ChevronDown, MapPin, Search, Send, SlidersHorizontal, Snowflake, Sparkles, X } from "lucide-react";
 import type { AbilityLevel, Resort, ResortPassAffiliation, ResortRegion } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ToggleChip } from "@/components/ui/toggle-chip";
+import { getConditionFreshness, getConditionSourceLabel } from "@/lib/conditions";
+import {
+  amenityLabels,
+  getResortAmenityProfile,
+  resortMatchesAmenityFilters,
+  type ResortAmenityKey,
+} from "@/lib/resort-amenities";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -17,6 +27,14 @@ const levels: AbilityLevel[] = ["beginner", "intermediate", "expert"];
 const regions: Array<ResortRegion | "all"> = ["all", "northeast", "midwest", "rockies", "west", "pacific"];
 const passFilters: Array<ResortPassAffiliation | "all"> = ["all", "epic", "ikon", "new-england", "indy", "independent"];
 const quickPrompts = ["What gear should I bring?", "Estimate my trip cost", "Which resort fits me?"];
+const amenityFilters: ResortAmenityKey[] = [
+  "beginnerFriendly",
+  "lessons",
+  "rentals",
+  "nightSkiing",
+  "adaptiveAccess",
+  "transitAccess",
+];
 
 const passLabels: Record<ResortPassAffiliation, string> = {
   epic: "Epic",
@@ -24,6 +42,21 @@ const passLabels: Record<ResortPassAffiliation, string> = {
   "new-england": "New England",
   indy: "Indy",
   independent: "Local",
+};
+
+const regionLabels: Record<ResortRegion | "all", string> = {
+  all: "All regions",
+  northeast: "Northeast",
+  midwest: "Midwest",
+  rockies: "Rockies",
+  west: "West",
+  pacific: "Pacific",
+};
+
+const abilityLabels: Record<AbilityLevel, string> = {
+  beginner: "Beginner",
+  intermediate: "Intermediate",
+  expert: "Expert",
 };
 
 type ChatMessage = {
@@ -44,7 +77,9 @@ export function ResortMap({ resorts }: Props) {
   const [ability, setAbility] = useState<AbilityLevel>("intermediate");
   const [region, setRegion] = useState<ResortRegion | "all">("all");
   const [passFilter, setPassFilter] = useState<ResortPassAffiliation | "all">("all");
+  const [activeAmenities, setActiveAmenities] = useState<Partial<Record<ResortAmenityKey, boolean>>>({});
   const [mapReady, setMapReady] = useState(false);
+  const deferredQuery = useDeferredValue(query);
   const resortById = useMemo(() => new Map(resorts.map((resort) => [resort.id, resort])), [resorts]);
   const selected = selectedId ? resortById.get(selectedId) : undefined;
   const selectedResortId = selected?.id;
@@ -54,12 +89,13 @@ export function ResortMap({ resorts }: Props) {
       resorts.filter((resort) => {
         const matchesQuery = `${resort.name} ${resort.state}`
           .toLowerCase()
-          .includes(query.toLowerCase());
+          .includes(deferredQuery.toLowerCase());
         const matchesRegion = region === "all" || resort.region === region;
         const matchesPass = passFilter === "all" || resort.passAffiliations.includes(passFilter);
-        return matchesQuery && matchesRegion && matchesPass;
+        const matchesAmenities = resortMatchesAmenityFilters(resort, activeAmenities);
+        return matchesQuery && matchesRegion && matchesPass && matchesAmenities;
       }),
-    [passFilter, query, region, resorts],
+    [activeAmenities, deferredQuery, passFilter, region, resorts],
   );
 
   const selectResort = useCallback((id: string) => {
@@ -141,7 +177,7 @@ export function ResortMap({ resorts }: Props) {
 
     if (filtered.length > 0) {
       const bounds = L.latLngBounds(filtered.map((resort) => [resort.latitude, resort.longitude]));
-      map.fitBounds(bounds, { padding: [42, 42], maxZoom: 6 });
+      map.fitBounds(bounds, { animate: false, padding: [42, 42], maxZoom: 6 });
     }
   }, [filtered, mapReady, selectResort]);
 
@@ -175,13 +211,18 @@ export function ResortMap({ resorts }: Props) {
         ability={ability}
         onAbilityChange={setAbility}
         onPassFilterChange={setPassFilter}
+        onAmenityFilterChange={(key) =>
+          setActiveAmenities((current) => ({ ...current, [key]: !current[key] }))
+        }
         onQueryChange={setQuery}
         onRegionChange={setRegion}
         onSelect={selectResort}
         passFilter={passFilter}
         region={region}
         resorts={filtered}
+        totalResorts={resorts.length}
         selectedId={selectedId}
+        activeAmenities={activeAmenities}
       />
 
       <div className="slopetrip-map-frame relative min-h-[560px] overflow-hidden rounded-lg border border-white/70 bg-map lg:min-h-0">
@@ -192,12 +233,27 @@ export function ResortMap({ resorts }: Props) {
         <div className="pointer-events-none absolute bottom-7 left-4 z-[500] rounded-md bg-white/86 px-3 py-2 text-xs text-muted-foreground shadow-sm backdrop-blur">
           Leaflet map with OpenStreetMap tiles
         </div>
+        {!mapReady && (
+          <div className="absolute inset-0 z-[450] grid place-items-center bg-map/80 text-sm font-medium text-[color:var(--pine)]">
+            Loading resort map...
+          </div>
+        )}
+        {mapReady && filtered.length === 0 && (
+          <div className="absolute left-1/2 top-1/2 z-[500] w-[min(320px,calc(100%-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-md border border-border bg-white/90 p-4 text-center text-sm text-muted-foreground shadow-sm">
+            No resorts match those filters.
+          </div>
+        )}
         {selected && (
           <div className="slopetrip-panel absolute right-4 top-4 z-[500] max-h-[calc(100%-2rem)] w-[min(360px,calc(100%-2rem))] overflow-y-auto rounded-lg border shadow-xl">
-            <div
-              className="h-32 bg-cover bg-center"
-              style={{ backgroundImage: `url(${selected.imageUrl})` }}
-            />
+            <div className="relative h-32 overflow-hidden rounded-t-lg bg-secondary">
+              <Image
+                src={selected.imageUrl}
+                alt={`${selected.name} ski terrain`}
+                fill
+                sizes="(max-width: 768px) calc(100vw - 2rem), 360px"
+                className="object-cover"
+              />
+            </div>
             <button
               type="button"
               aria-label="Close resort details"
@@ -219,6 +275,9 @@ export function ResortMap({ resorts }: Props) {
                 <h2 className="mt-2 text-xl font-semibold text-[color:var(--pine)]">{selected.name}</h2>
                 <p className="text-sm text-muted-foreground">
                   {selected.state} - {selected.acres.toLocaleString()} skiable acres - {selected.trails} trails
+                </p>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {getConditionSourceLabel(selected.condition.source)} - {getConditionFreshness(selected.condition).detail}
                 </p>
               </div>
               <div className="grid grid-cols-3 gap-2">
@@ -251,9 +310,18 @@ export function ResortMap({ resorts }: Props) {
                   </li>
                 ))}
               </ul>
-              <a href="/plan">
+              <div className="flex flex-wrap gap-1.5">
+                {(Object.entries(getResortAmenityProfile(selected)) as Array<[ResortAmenityKey, boolean]>)
+                  .filter(([, enabled]) => enabled)
+                  .map(([key]) => (
+                    <Badge key={key} variant="outline">
+                      {amenityLabels[key]}
+                    </Badge>
+                  ))}
+              </div>
+              <Link href="/plan">
                 <Button className="w-full bg-[linear-gradient(135deg,var(--signal),#ff9b52)] text-signal-foreground hover:opacity-95">Plan a trip for me</Button>
-              </a>
+              </Link>
             </div>
           </div>
         )}
@@ -270,7 +338,9 @@ export function ResortMap({ resorts }: Props) {
 }
 
 const FilterPanel = memo(function FilterPanel({
+  activeAmenities,
   ability,
+  onAmenityFilterChange,
   onAbilityChange,
   onPassFilterChange,
   onQueryChange,
@@ -280,8 +350,11 @@ const FilterPanel = memo(function FilterPanel({
   region,
   resorts,
   selectedId,
+  totalResorts,
 }: {
+  activeAmenities: Partial<Record<ResortAmenityKey, boolean>>;
   ability: AbilityLevel;
+  onAmenityFilterChange: (key: ResortAmenityKey) => void;
   onAbilityChange: (ability: AbilityLevel) => void;
   onPassFilterChange: (pass: ResortPassAffiliation | "all") => void;
   onQueryChange: (query: string) => void;
@@ -291,6 +364,7 @@ const FilterPanel = memo(function FilterPanel({
   region: ResortRegion | "all";
   resorts: Resort[];
   selectedId: string | null;
+  totalResorts: number;
 }) {
   const [localQuery, setLocalQuery] = useState("");
 
@@ -300,7 +374,7 @@ const FilterPanel = memo(function FilterPanel({
   }, [localQuery, onQueryChange]);
 
   return (
-    <aside className="slopetrip-panel slopetrip-filter-panel flex min-h-0 flex-col gap-3 overflow-hidden rounded-lg border p-4">
+    <aside className="slopetrip-panel slopetrip-filter-panel flex min-h-0 flex-col gap-3 rounded-lg border p-4 lg:overflow-hidden">
       <div>
         <p className="flex items-center gap-2 text-xs font-semibold uppercase text-muted-foreground">
           <Snowflake className="size-3.5 text-[color:var(--glacier)]" />
@@ -317,72 +391,110 @@ const FilterPanel = memo(function FilterPanel({
           onChange={(event) => setLocalQuery(event.target.value)}
         />
       </label>
-      <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium">Level</span>
-        <div className="grid grid-cols-3 gap-2">
-          {levels.map((level) => (
-            <Button
-              key={level}
-              type="button"
-              variant={ability === level ? "default" : "outline"}
-              size="sm"
-              className={ability === level ? "bg-[linear-gradient(135deg,var(--primary),#0a6c7f)]" : "bg-white/70"}
-              onClick={() => onAbilityChange(level)}
-            >
-              {level}
-            </Button>
-          ))}
-        </div>
+      <div className="grid gap-2">
+        <FilterDropdown label="Ability" value={abilityLabels[ability]} defaultOpen>
+          <div className="grid grid-cols-3 gap-2" role="group" aria-label="Ability level">
+            {levels.map((level) => (
+              <Button
+                key={level}
+                aria-pressed={ability === level}
+                type="button"
+                variant={ability === level ? "default" : "outline"}
+                size="sm"
+                className={ability === level ? "bg-[linear-gradient(135deg,var(--primary),#0a6c7f)] capitalize" : "bg-white/72 capitalize"}
+                onClick={() => onAbilityChange(level)}
+              >
+                {level}
+              </Button>
+            ))}
+          </div>
+        </FilterDropdown>
+        <FilterDropdown label="Region" value={regionLabels[region]}>
+          <div className="grid grid-cols-2 gap-2" role="group" aria-label="Resort region">
+            {regions.map((item) => (
+              <ToggleChip
+                key={item}
+                onClick={() => onRegionChange(item)}
+                pressed={region === item}
+              >
+                {regionLabels[item]}
+              </ToggleChip>
+            ))}
+          </div>
+        </FilterDropdown>
+        <FilterDropdown label="Pass" value={passFilter === "all" ? "All passes" : passLabels[passFilter]}>
+          <div className="grid grid-cols-2 gap-2" role="group" aria-label="Pass affiliation">
+            {passFilters.map((item) => (
+              <ToggleChip
+                key={item}
+                onClick={() => onPassFilterChange(item)}
+                pressed={passFilter === item}
+              >
+                {item === "all" ? "All passes" : passLabels[item]}
+              </ToggleChip>
+            ))}
+          </div>
+        </FilterDropdown>
+        <FilterDropdown
+          label="Safety and access"
+          value={`${Object.values(activeAmenities).filter(Boolean).length} selected`}
+        >
+          <div className="grid grid-cols-1 gap-2" role="group" aria-label="Safety and access filters">
+            {amenityFilters.map((item) => (
+              <ToggleChip
+                key={item}
+                onClick={() => onAmenityFilterChange(item)}
+                pressed={Boolean(activeAmenities[item])}
+              >
+                {amenityLabels[item]}
+              </ToggleChip>
+            ))}
+          </div>
+        </FilterDropdown>
       </div>
-      <div className="flex flex-col gap-2">
-        <span className="flex items-center gap-2 text-sm font-medium">
-          <SlidersHorizontal className="size-4" />
-          Region
+      <div className="flex items-center justify-between gap-3 border-t border-border/70 pt-3">
+        <p className="text-xs font-medium text-[color:var(--pine)]" aria-live="polite">
+          {resorts.length} of {totalResorts} resorts
+        </p>
+        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+          <SlidersHorizontal className="size-3.5" />
+          Filtered
         </span>
-        <div className="flex flex-wrap gap-2">
-          {regions.map((item) => (
-            <button
-              key={item}
-              className={cn(
-                "rounded-md border px-2.5 py-1.5 text-xs font-medium capitalize shadow-sm transition",
-                region === item
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border bg-white/66 text-muted-foreground hover:border-primary/40 hover:text-foreground",
-              )}
-              onClick={() => onRegionChange(item)}
-              type="button"
-            >
-              {item}
-            </button>
-          ))}
-        </div>
       </div>
-      <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium">Pass</span>
-        <div className="flex flex-wrap gap-2">
-          {passFilters.map((item) => (
-            <button
-              key={item}
-              className={cn(
-                "rounded-md border px-2.5 py-1.5 text-xs font-medium capitalize shadow-sm transition",
-                passFilter === item
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border bg-white/66 text-muted-foreground hover:border-primary/40 hover:text-foreground",
-              )}
-              onClick={() => onPassFilterChange(item)}
-              type="button"
-            >
-              {item === "all" ? "all" : passLabels[item]}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="slopetrip-resort-scroll min-h-0 flex-1 overflow-y-auto pr-1">
+      <div className="slopetrip-resort-scroll min-h-[360px] overflow-y-auto pr-1 lg:min-h-0 lg:flex-1">
         <ResortList resorts={resorts} selectedId={selectedId} onSelect={onSelect} />
       </div>
     </aside>
   );
 });
+
+function FilterDropdown({
+  children,
+  defaultOpen = false,
+  label,
+  value,
+}: {
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+  label: string;
+  value: string;
+}) {
+  return (
+    <details
+      className="group rounded-md border border-border bg-white/72 shadow-sm"
+      open={defaultOpen}
+    >
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-sm font-medium text-[color:var(--pine)] marker:hidden">
+        <span>{label}</span>
+        <span className="flex min-w-0 items-center gap-2 text-xs font-normal text-muted-foreground">
+          <span className="truncate">{value}</span>
+          <ChevronDown className="size-4 shrink-0 transition group-open:rotate-180" />
+        </span>
+      </summary>
+      <div className="border-t border-border/70 p-3">{children}</div>
+    </details>
+  );
+}
 
 const ResortList = memo(function ResortList({
   resorts,
@@ -393,40 +505,69 @@ const ResortList = memo(function ResortList({
   selectedId: string | null;
   onSelect: (id: string) => void;
 }) {
+  if (resorts.length === 0) {
+    return (
+      <div className="rounded-md border border-dashed border-border bg-white/64 p-4 text-sm text-muted-foreground">
+        No resorts match the current filters.
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-2">
       {resorts.map((resort) => (
-        <button
-          key={resort.id}
-          type="button"
-          onClick={() => onSelect(resort.id)}
-          className={cn(
-            "slopetrip-resort-row slopetrip-ticket-edge rounded-md border p-3 text-left shadow-sm transition-colors hover:border-primary/50 hover:bg-white/90",
-            selectedId === resort.id
-              ? "border-primary bg-primary/10 shadow-[0_12px_28px_rgb(7_63_75_/_13%)]"
-              : "border-border bg-white/72",
-          )}
-        >
-          <span className="block text-sm font-semibold text-[color:var(--pine)]">{resort.name}</span>
-          <span className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Snowflake className="size-3.5 text-[color:var(--glacier)]" />
-            {resort.state} - {resort.condition.snowfall7DayIn}&quot; 7-day snowfall
-          </span>
-          <span className="mt-2 flex flex-wrap gap-1.5">
-            {resort.passAffiliations.map((pass) => (
-              <span
-                key={pass}
-                className="rounded-sm border border-border/80 bg-white/72 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
-              >
-                {passLabels[pass]}
-              </span>
-            ))}
-          </span>
-        </button>
+        <ResortListRow key={resort.id} resort={resort} selectedId={selectedId} onSelect={onSelect} />
       ))}
     </div>
   );
 });
+
+function ResortListRow({
+  resort,
+  selectedId,
+  onSelect,
+}: {
+  resort: Resort;
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}) {
+  const freshness = getConditionFreshness(resort.condition);
+  const amenities = getResortAmenityProfile(resort);
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(resort.id)}
+      className={cn(
+        "slopetrip-resort-row slopetrip-ticket-edge rounded-md border p-3 text-left shadow-sm transition-colors hover:border-primary/50 hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+        selectedId === resort.id
+          ? "border-primary bg-primary/10 shadow-[0_12px_28px_rgb(7_63_75_/_13%)]"
+          : "border-border bg-white/72",
+      )}
+    >
+      <span className="block text-sm font-semibold text-[color:var(--pine)]">{resort.name}</span>
+      <span className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Snowflake className="size-3.5 text-[color:var(--glacier)]" />
+        {resort.state} - {resort.condition.snowfall7DayIn}&quot; 7-day snowfall - {freshness.label}
+      </span>
+      <span className="mt-2 flex flex-wrap gap-1.5">
+        {resort.passAffiliations.map((pass) => (
+          <span
+            key={pass}
+            className="rounded-sm border border-border/80 bg-white/72 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+          >
+            {passLabels[pass]}
+          </span>
+        ))}
+        {amenities.nightSkiing && (
+          <span className="rounded-sm border border-border/80 bg-white/72 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+            Night
+          </span>
+        )}
+      </span>
+    </button>
+  );
+}
 
 const TripAssistant = memo(function TripAssistant({
   ability,
@@ -515,7 +656,7 @@ const TripAssistant = memo(function TripAssistant({
           </Badge>
         </div>
       </div>
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+      <div aria-live="polite" className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4" role="log">
         {messages.map((message, index) => (
           <div
             key={`${message.role}-${index}`}
@@ -540,16 +681,18 @@ const TripAssistant = memo(function TripAssistant({
         <div className="mb-3 flex flex-wrap gap-2">
           {quickPrompts.map((prompt) => (
             <button
-            key={prompt}
-            type="button"
+              key={prompt}
+              type="button"
+              disabled={isChatPending}
               onClick={() => submitMessage(prompt)}
-              className="rounded-md border border-border bg-white/72 px-2.5 py-1.5 text-xs font-medium text-muted-foreground shadow-sm transition hover:border-primary/50 hover:text-foreground"
+              className="rounded-md border border-border bg-white/72 px-2.5 py-1.5 text-xs font-medium text-muted-foreground shadow-sm transition hover:border-primary/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
             >
               {prompt}
             </button>
           ))}
         </div>
         <form
+          aria-busy={isChatPending}
           className="flex gap-2"
           onSubmit={(event) => {
             event.preventDefault();
@@ -563,7 +706,7 @@ const TripAssistant = memo(function TripAssistant({
             rows={2}
             className="min-h-11 flex-1 resize-none rounded-md border border-input bg-white/78 px-3 py-2 text-sm text-foreground shadow-sm transition placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
-          <Button className="bg-[linear-gradient(135deg,var(--signal),#ff9b52)] text-signal-foreground hover:opacity-95" type="submit" size="icon" disabled={isChatPending || !localInput.trim()}>
+          <Button aria-label="Send message" className="bg-[linear-gradient(135deg,var(--signal),#ff9b52)] text-signal-foreground hover:opacity-95" type="submit" size="icon" disabled={isChatPending || !localInput.trim()}>
             <Send className="size-4" />
           </Button>
         </form>

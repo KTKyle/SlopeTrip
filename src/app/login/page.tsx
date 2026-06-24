@@ -1,9 +1,10 @@
 import { AppShell } from "@/components/app-shell";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PendingSubmitButton } from "@/components/ui/pending-submit-button";
 import { signInWithPassword, signUpWithPassword } from "@/lib/supabase/actions";
+import { getUserFacingErrorMessage } from "@/lib/user-facing-errors";
 
 export default async function LoginPage({
   searchParams,
@@ -11,6 +12,7 @@ export default async function LoginPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const params = await searchParams;
+  const errorMessage = getUserFacingErrorMessage(params.error);
 
   return (
     <AppShell>
@@ -31,9 +33,9 @@ export default async function LoginPage({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {params.error && (
+            {errorMessage && (
               <p className="mb-4 rounded-md border border-signal bg-signal/10 p-3 text-sm">
-                {decodeURIComponent(params.error)}
+                {errorMessage}
               </p>
             )}
             <form className="flex flex-col gap-4">
@@ -46,10 +48,12 @@ export default async function LoginPage({
                 <Input id="password" name="password" type="password" required minLength={8} />
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <Button formAction={signInWithPassword}>Login</Button>
-                <Button variant="outline" formAction={signUpWithPassword}>
+                <PendingSubmitButton formAction={signInWithPassword} pendingLabel="Logging in...">
+                  Login
+                </PendingSubmitButton>
+                <PendingSubmitButton pendingLabel="Creating..." variant="outline" formAction={signUpWithPassword}>
                   Create account
-                </Button>
+                </PendingSubmitButton>
               </div>
             </form>
           </CardContent>

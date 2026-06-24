@@ -1,10 +1,12 @@
 import { resorts } from "@/lib/resorts";
 import type {
   AbilityLevel,
+  RecommendationFactor,
   Resort,
   TripRecommendationRequest,
   TripRecommendationResult,
 } from "@/lib/types";
+import { bookingPriorityLabels, getGroupPlan, getGroupSize } from "@/lib/trip-insights";
 
 const abilityWeights: Record<AbilityLevel, keyof Resort["difficulty"]> = {
   beginner: "beginner",
@@ -34,17 +36,47 @@ export function estimateDriveHours(miles: number) {
 }
 
 export function estimateTripCost(resort: Resort, request: TripRecommendationRequest) {
-  const liftTickets = resort.ticketEstimateUsd * request.days;
+  const liftTickets = getEffectiveTicketCost(resort, request) * request.days;
   const rentals =
     request.rentsGear || request.budget.includeRentals
       ? resort.rentalEstimateUsd * request.days
       : 0;
+  const assumptions = request.budget.assumptions;
+  const lodging =
+    request.budget.includeLodging && assumptions?.lodgingNightlyUsd
+      ? assumptions.lodgingNightlyUsd * Math.max(1, request.days - 1)
+      : 0;
+  const food = (assumptions?.foodDailyUsd ?? 0) * request.days;
+  const parking = (assumptions?.parkingDailyUsd ?? 0) * request.days;
+  const rentalCar = (assumptions?.rentalCarDailyUsd ?? 0) * request.days;
+  const fuel = assumptions?.fuelEstimateUsd ?? 0;
 
-  return liftTickets + rentals;
+  return liftTickets + rentals + lodging + food + parking + rentalCar + fuel;
 }
 
 function estimateResortDayCost(resort: Resort, request: TripRecommendationRequest) {
-  return resort.ticketEstimateUsd + (request.rentsGear || request.budget.includeRentals ? resort.rentalEstimateUsd : 0);
+  const assumptions = request.budget.assumptions;
+  const perDayAddOns =
+    (request.budget.includeLodging ? assumptions?.lodgingNightlyUsd ?? 0 : 0) +
+    (assumptions?.foodDailyUsd ?? 0) +
+    (assumptions?.parkingDailyUsd ?? 0) +
+    (assumptions?.rentalCarDailyUsd ?? 0) +
+    Math.round((assumptions?.fuelEstimateUsd ?? 0) / Math.max(1, request.days));
+
+  return (
+    getEffectiveTicketCost(resort, request) +
+    (request.rentsGear || request.budget.includeRentals ? resort.rentalEstimateUsd : 0) +
+    perDayAddOns
+  );
+}
+
+export function getEffectiveTicketCost(resort: Resort, request: TripRecommendationRequest) {
+  const ownedPasses = request.passAffiliations ?? [];
+  const hasPassAccess = resort.passAffiliations.some(
+    (pass) => pass !== "independent" && ownedPasses.includes(pass),
+  );
+
+  return hasPassAccess ? 0 : resort.ticketEstimateUsd;
 }
 
 export function scoreResort(resort: Resort, request: TripRecommendationRequest) {
@@ -96,8 +128,10 @@ export function buildDemoRecommendation(
       reasons: [
         `${resort.difficulty[abilityWeights[request.abilityLevel]]}% ${request.abilityLevel} terrain fit`,
         `${resort.condition.snowfall7DayIn}" reported 7-day snowfall`,
+        `${getGroupSize(getGroupPlan(request.budget.assumptions))}-person group plan weighted toward ${bookingPriorityLabels[getGroupPlan(request.budget.assumptions).bookingPriority].toLowerCase()}`,
         request.preferredRegion === resort.region ? "Matches preferred region" : "Strong overall value",
       ],
+      factors: buildRecommendationFactors(resort, request, score),
     }));
 
   return {
@@ -105,8 +139,86 @@ export function buildDemoRecommendation(
     totalEstimatedCostUsd: stops.reduce((total, stop) => total + stop.estimatedCostUsd, 0),
     confidence: "demo",
     summary: stops.length
-      ? "Generated from SlopeTrip's local scoring model. Lodging is kept separate so you can search stays after choosing the route."
+      ? request.budget.includeLodging
+        ? "Generated from SlopeTrip's local scoring model with group size, lodging, and travel assumptions included in the planning total."
+        : "Generated from SlopeTrip's local scoring model with group size included. Lodging is kept separate so you can search stays after choosing the route."
       : "No selected resort fits the current budget guardrail. Raise the budget or choose lower-cost mountains.",
     stops,
+    generatedAt: new Date().toISOString(),
+    modelMetadata: {
+      engine: "demo-scoring",
+      promptVersion: "slopetrip-recommendation-v2",
+    },
+    safetyNotes: [
+      "Snow and price data should be verified with the resort before booking.",
+      "Drive times are planning estimates and can change quickly in winter weather.",
+      "Condition data may be seeded or provider-synced; check the source and freshness before committing.",
+    ],
   };
+}
+
+function buildRecommendationFactors(
+  resort: Resort,
+  request: TripRecommendationRequest,
+  score: number,
+): RecommendationFactor[] {
+  const abilityFit = resort.difficulty[abilityWeights[request.abilityLevel]];
+  const ticketCost = getEffectiveTicketCost(resort, request);
+  const hasPassAccess = ticketCost === 0 && resort.ticketEstimateUsd > 0;
+  const estimatedCost = estimateTripCost(resort, request);
+  const budgetDelta = request.budget.maxTotalUsd - estimatedCost;
+
+  const factors: RecommendationFactor[] = [
+    {
+      label: "Ability fit",
+      value: `${abilityFit}%`,
+      detail: `${resort.name} reports ${abilityFit}% ${request.abilityLevel} terrain.`,
+      tone: abilityFit >= 30 ? "positive" : abilityFit >= 18 ? "neutral" : "warning",
+    },
+    {
+      label: "Budget fit",
+      value: budgetDelta >= 0 ? "Within" : "Over",
+      detail:
+        budgetDelta >= 0
+          ? `Estimated total leaves about $${budgetDelta.toLocaleString()} in the budget.`
+          : `Estimated total is about $${Math.abs(budgetDelta).toLocaleString()} over budget.`,
+      tone: budgetDelta >= 0 ? "positive" : budgetDelta > -250 ? "neutral" : "warning",
+    },
+    {
+      label: "Pass fit",
+      value: hasPassAccess ? "Covered" : "Ticketed",
+      detail: hasPassAccess
+        ? `Your saved pass can cover the lift ticket estimate for this resort.`
+        : `No saved pass match was found, so tickets are included in cost.`,
+      tone: hasPassAccess ? "positive" : "neutral",
+    },
+    {
+      label: "Snow signal",
+      value: `${resort.condition.snowfall7DayIn}"`,
+      detail: `${resort.condition.snowfall7DayIn}" 7-day snowfall in the current SlopeTrip data snapshot.`,
+      tone: resort.condition.snowfall7DayIn >= 10 ? "positive" : "neutral",
+    },
+    {
+      label: "Overall score",
+      value: String(score),
+      detail: "Combined score from cost, terrain fit, snowfall, region preference, and drive estimate.",
+      tone: score >= 80 ? "positive" : score >= 60 ? "neutral" : "warning",
+    },
+  ];
+
+  if (request.homeLatitude && request.homeLongitude) {
+    const miles = haversineMiles(
+      { latitude: request.homeLatitude, longitude: request.homeLongitude },
+      { latitude: resort.latitude, longitude: resort.longitude },
+    );
+    const driveHours = estimateDriveHours(miles);
+    factors.splice(3, 0, {
+      label: "Drive fit",
+      value: `${driveHours.toFixed(1)}h`,
+      detail: `${Math.round(miles).toLocaleString()} estimated miles from the saved origin.`,
+      tone: driveHours <= request.maxDriveHours ? "positive" : "warning",
+    });
+  }
+
+  return factors;
 }

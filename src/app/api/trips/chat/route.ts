@@ -1,21 +1,23 @@
 import { NextResponse } from "next/server";
 import { apiError, formatZodError, parseJsonBody } from "@/lib/api";
 import { answerTripQuestion } from "@/lib/gemini";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { addRateLimitHeaders, logApiEvent } from "@/lib/observability";
+import { checkRateLimit, getRateLimitKey } from "@/lib/rate-limit";
 import { tripChatRequestSchema } from "@/lib/validation";
 
 export async function POST(request: Request) {
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0] ?? "local";
+  const rateLimitKey = getRateLimitKey(request, "trip-chat");
   const limit = Number(process.env.TRIP_CHAT_RATE_LIMIT_PER_HOUR ?? 40);
-  const rate = checkRateLimit(`trip-chat:${ip}`, limit);
+  const rate = checkRateLimit(rateLimitKey, limit);
 
   if (!rate.allowed) {
-    return apiError("Too many chat requests", 429);
+    logApiEvent("trips.chat.rate_limited", { rateLimitKey });
+    return addRateLimitHeaders(apiError("Too many chat requests", 429), rate);
   }
 
   const body = await parseJsonBody(request);
   if (body.error) {
-    return apiError(body.error, 400);
+    return apiError(body.error, body.status ?? 400);
   }
 
   const parsed = tripChatRequestSchema.safeParse(body.data);
@@ -25,8 +27,10 @@ export async function POST(request: Request) {
 
   try {
     const result = await answerTripQuestion(parsed.data);
-    return NextResponse.json(result);
+    logApiEvent("trips.chat.succeeded", { confidence: result.confidence });
+    return addRateLimitHeaders(NextResponse.json(result), rate);
   } catch {
+    logApiEvent("trips.chat.failed");
     return apiError("Unable to answer trip question right now", 500);
   }
 }
